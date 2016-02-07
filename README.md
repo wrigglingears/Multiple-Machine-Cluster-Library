@@ -11,9 +11,10 @@ Machines which are assigned to do work are MMC_Workers, while those assigned to 
 This library allows for dynamic scheduling of work between machines through class methods that ask for, and give more work. A skeleton example to demonstrate the library looks something like this:
 
 
-    void worker_function(Layout_t& layout) { //layout stores the cluster layout plan
+    void worker_function(Machine& machine) { //layout stores the cluster layout plan
     
-        MMC_Worker worker(layout);
+        MMC_Worker worker; 
+        worker = machine; //faster initialization using values already stored in machine
     
         //setup code here
     
@@ -25,18 +26,19 @@ This library allows for dynamic scheduling of work between machines through clas
         hasMoreWork = worker.get_more_work();
         }
     
-        //return results to worker.get_reporting_rank();
+        //return results to worker.get_manager_rank();
     }
 
 
-    void manager_function(Layout& layout) {
+    void manager_function(Machine& machine) {
     
-        MMC_Manager manager(layout);
+        MMC_Manager manager;
+        manager = machine;
     
         //setup code here
     
         while (work units are not all given out) {
-            int nextRank = manager.get_send_work_rank();
+            int nextRank = manager.get_next_worker();
             //send work unit to nextRank
             //set up for next work unit
         }
