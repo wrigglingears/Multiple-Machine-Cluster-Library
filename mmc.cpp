@@ -1,15 +1,16 @@
-#include <iostream>
+#include "mmc.h"
+
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
-#include <sstream>
 #include <fstream>
-#include <cassert>
+#include <iostream>
 #include <omp.h>
 #include <mpi.h>
 #include <pthread.h>
-#include "mmc.h"
+#include <sstream>
+#include <string>
+#include <vector>
 
 using namespace std;
 
@@ -24,6 +25,7 @@ using namespace std;
  */
 void MMC_Machine::actual_MMC_Machine_ctor(Layout_t& layout) {
     if (layout_.size() == 0) {
+        cout << "fatal error - no information in layout" << endl;
         throw "fatal error - no information in layout";
     }
     else if (layout_.size() == 1) {
@@ -37,17 +39,17 @@ void MMC_Machine::actual_MMC_Machine_ctor(Layout_t& layout) {
     inputFile >> nThreads_;
     inputFile.close();
     bool found = false;
-    int posInGroup;
     for (unsigned int i = 0; i < layout_.size() && !found; ++i) {
         for (unsigned int j = 0; j < layout[i].size() && !found; ++j) {
             if(layout[i][j] == rank_) {
                 found = true;
                 level_ = i;
-                posInGroup = j;
+                rankInLevel_ = j;
             }
         }
     }
     if (!found) {
+        cout << "fatal error - machine rank not found in layout" << endl;
         throw "fatal error - machine rank not found in layout";
     }
     if (level_ == 0) {
@@ -55,16 +57,22 @@ void MMC_Machine::actual_MMC_Machine_ctor(Layout_t& layout) {
     }
     else {
         role_ = "manager";
+        if (level_ == layout_.size() - 1) {
+            isTop_ = true;    
+        }
+        else {
+            isTop_ = false;
+        }
     }
     if ((unsigned int)level_ == layout.size() - 1) {
-        reportingRank_ = NO_REPORTING_RANK;
+        managerRank_ = NO_MANAGER;
     }
     else {
         int nInGroup = layout[level_].size() / layout[level_ + 1].size();
         int accumulate = nInGroup;
         for (int i = 0; ; ++i) {
-            if (posInGroup < accumulate) {
-                reportingRank_ = layout[level_ + 1][i];
+            if (rankInLevel_ < accumulate) {
+                managerRank_ = layout[level_ + 1][i];
                 break;
             }
             accumulate += nInGroup;
@@ -124,7 +132,7 @@ int MMC_Machine::get_name_length() {
 }
 
 /* Accessor for the number of threads the machine
- * supports.
+ * will try to run.
  * Takes in no arguments, and returns an integer.
  */
 int MMC_Machine::get_n_threads() {
@@ -145,11 +153,25 @@ int MMC_Machine::get_level() {
     return level_;
 }
 
-/* Accessor for the reporting rank of the machine.
+/* Accessor for the rank of the machine's manager.
  * Takes in no arguments, and returns an integer. 
  */
-int MMC_Machine::get_reporting_rank() {
-    return reportingRank_;
+int MMC_Machine::get_manager_rank() {
+    return managerRank_;
+}
+
+/* Accessor for the rank of the machine within its level.
+ * Takes in no arguments, and returns an integer. 
+ */
+int MMC_Machine::get_rank_in_level() {
+    return rankInLevel_;
+}
+
+/* Accessor for whether the machine is in the top level.
+ * Takes in no arguments, and returns a boolean.
+ */
+bool MMC_Machine::is_top() {
+    return isTop_;    
 }
 
 void MMC_Machine::print_layout_info() {
@@ -163,7 +185,7 @@ void MMC_Machine::print_layout_info() {
 
 void MMC_Machine::print_comm_info() {
     cout << "rank: " << rank_;
-    cout << " reporting rank: " << reportingRank_ << endl;
+    cout << " manager rank: " << managerRank_ << endl;
 }
 
 //////////////////////////////////
@@ -174,19 +196,30 @@ void MMC_Machine::print_comm_info() {
  * Takes in a Layout_t variable detailing the cluster layout.
  */
 MMC_Thread::MMC_Thread(Layout_t& layout)
-           :MMC_Machine(layout) {
+        :MMC_Machine(layout) {
     threadID_ = omp_get_thread_num();               
 }
 
 /* Constructor for the MMC_Thread class.
- * Takes in an MMC_Machine object.
- * This constructor is preferred for speed
- * of execution, since is just copies over the 
- * data already in the MMC_Machine object.
+ * Takes in a no arguments. Should be followed
+ * by the = operation to initialize members.
  */
- /* COMMENTING OUT FOR NOW */
- /*
-MMC_Thread::MMC_Thread(MMC_Machine& machine) {
+MMC_Thread::MMC_Thread() {
+}
+
+/* Destructor for the MMC_Thread class.
+ */
+MMC_Thread::~MMC_Thread() {
+}
+
+/* More efficient initialization of the MMC_Thread
+ * object, using an already created MMC_Machine
+ * object.
+ */
+MMC_Thread& MMC_Thread::operator=(MMC_Machine& machine) {
+    if (this == &machine) {
+        return *this;
+    }
     layout_ = machine.get_layout();
     rank_ = machine.get_rank();
     sName_ = machine.get_name();
@@ -194,14 +227,10 @@ MMC_Thread::MMC_Thread(MMC_Machine& machine) {
     nThreads_ = machine.get_n_threads();
     role_ = machine.get_role();
     level_ = machine.get_level();
-    reportingRank_ = machine.get_reporting_rank();
+    managerRank_ = machine.get_manager_rank();
+    rankInLevel_ = machine.get_rank_in_level();
     threadID_ = omp_get_thread_num();
-}
-*/
-
-/* Destructor for the MMC_Thread class.
- */
-MMC_Thread::~MMC_Thread() {
+    return *this;
 }
 
 /* Accessor for the thread ID of the thread.
@@ -219,18 +248,29 @@ int MMC_Thread::get_thread_id() {
  * Takes in a Layout_t variable detailing the cluster layout.
  */
 MMC_Worker::MMC_Worker(Layout_t& layout)
-           :MMC_Machine(layout) {               
+        :MMC_Machine(layout) {               
 }
 
 /* Constructor for the MMC_Worker class.
- * Takes in an MMC_Machine object.
- * This constructor is preferred for speed
- * of execution, since is just copies over the 
- * data already in the MMC_Machine object.
+ * Takes in no arguments. Should be followed
+ * by the = operation to initialize members.
  */
-  /* COMMENTING OUT FOR NOW */
-/*
-MMC_Worker::MMC_Worker(MMC_Machine& machine) {
+MMC_Worker::MMC_Worker() {
+}
+
+/* Destructor for the MMC_Worker class.
+ */
+MMC_Worker::~MMC_Worker() {
+}
+
+/* More efficient initialization of the MMC_Worker
+ * object, using an already created MMC_Machine
+ * object.
+ */
+MMC_Worker& MMC_Worker::operator=(MMC_Machine& machine) {
+    if (this == &machine) {
+        return *this;
+    }
     layout_ = machine.get_layout();
     rank_ = machine.get_rank();
     sName_ = machine.get_name();
@@ -238,28 +278,24 @@ MMC_Worker::MMC_Worker(MMC_Machine& machine) {
     nThreads_ = machine.get_n_threads();
     role_ = machine.get_role();
     level_ = machine.get_level();
-    reportingRank_ = machine.get_reporting_rank();
-}
-*/
-
-/* Destructor for the MMC_Worker class.
- */
-MMC_Worker::~MMC_Worker() {
+    managerRank_ = machine.get_manager_rank();
+    rankInLevel_ = machine.get_rank_in_level();
+    return *this;
 }
 
 /* Method to check if there is more work that can be
- * received from this worker's manager.
- * Returns true if there is more work.
- * This method call should be followed up by receiving
- * the work from the worker's manager.
- * Takes in no arguments, and returns a boolean.
- */
+* received from this worker's manager.
+* Returns true if there is more work.
+* This method call should be followed up by receiving
+* the work from the worker's manager.
+* Takes in no arguments, and returns a boolean.
+*/
 bool MMC_Worker::get_more_work() {
     int sendDummy;
     MPI_Request requestDummy;
-    MPI_Isend(&sendDummy, 1, MPI_INT, reportingRank_, REQUESTING_WORK_TAG, MPI_COMM_WORLD, &requestDummy);
+    MPI_Isend(&sendDummy, 1, MPI_INT, managerRank_, REQUESTING_TAG, MPI_COMM_WORLD, &requestDummy);
     int workFlag;
-    MPI_Recv(&workFlag, 1, MPI_INT, reportingRank_, RECEIVING_WORK_FLAG_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);         
+    MPI_Recv(&workFlag, 1, MPI_INT, managerRank_, WORK_FLAG_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);         
     if (workFlag) {
         return true;
     }
@@ -271,22 +307,38 @@ bool MMC_Worker::get_more_work() {
 ///////////////////////////////////
 
 /* Constructor for the MMC_Manager class.
- * Takes in a Layout_t variable detailing the 
- * cluster layout.
- */
+* Takes in a Layout_t variable detailing the 
+* cluster layout.
+*/
 MMC_Manager::MMC_Manager(Layout_t& layout)
-           :MMC_Worker(layout) {               
+        :MMC_Worker(layout) {               
+    nWorkers_ = layout_[level_ - 1].size() / layout_[level_].size();
+    int start = nWorkers_ * rankInLevel_, end = start + nWorkers_;
+    for (int i = start; i < end; ++i) {
+        workerRanks_.push_back(layout_[level_ - 1][i]);
+    }
 }
 
 /* Constructor for the MMC_Manager class.
- * Takes in an MMC_Machine object.
- * This constructor is preferred for speed
- * of execution, since is just copies over the 
- * data already in the MMC_Machine object.
+* Takes in no arguments. Should be followed
+* by the = operation to initialize members.
+*/
+MMC_Manager::MMC_Manager() {
+}
+
+/* Destructor for the MMC_Manager class. 
+*/
+MMC_Manager::~MMC_Manager() {
+}
+
+/* More efficient initialization of the MMC_Manager
+ * object, using an already created MMC_Machine
+ * object.
  */
-  /* COMMENTING OUT FOR NOW */
-/*
-MMC_Manager::MMC_Manager(MMC_Machine& machine) {
+MMC_Manager& MMC_Manager::operator=(MMC_Machine& machine) {
+    if (this == &machine) {
+        return *this;
+    }
     layout_ = machine.get_layout();
     rank_ = machine.get_rank();
     sName_ = machine.get_name();
@@ -294,13 +346,16 @@ MMC_Manager::MMC_Manager(MMC_Machine& machine) {
     nThreads_ = machine.get_n_threads();
     role_ = machine.get_role();
     level_ = machine.get_level();
-    reportingRank_ = machine.get_reporting_rank();
-}
-*/
-
-/* Destructor for the MMC_Manager class. 
- */
-MMC_Manager::~MMC_Manager() {
+    managerRank_ = machine.get_manager_rank();
+    rankInLevel_ = machine.get_rank_in_level();
+    nWorkers_ = layout_[level_ - 1].size() / layout_[level_].size();
+    int start = nWorkers_ * rankInLevel_;
+    int end = start + nWorkers_;
+    for (int i = start; i < end; ++i) {
+        //cout << "pushing back with " << " i: " << i << " --- " << layout_[level_ - 1][i] <<  endl;
+        workerRanks_.push_back(layout_[level_ - 1][i]);
+    }
+    return *this;
 }
 
 /* Accessor for the number of workers under 
@@ -308,7 +363,7 @@ MMC_Manager::~MMC_Manager() {
  * Takes in no aruments, and returns an integer.
  */
 int MMC_Manager::get_n_workers() {
-    return layout_[level_ - 1].size();
+    return nWorkers_;;
 }
 
 /* Accessor for the rank of the first worker
@@ -316,7 +371,7 @@ int MMC_Manager::get_n_workers() {
  * Takes in no arguments, and returns an integer.
  */
 int MMC_Manager::get_first_worker() {
-    return layout_[level_ - 1][0];
+    return workerRanks_[0];
 }
 
 /* Accessor for the rank of the last worker 
@@ -324,7 +379,7 @@ int MMC_Manager::get_first_worker() {
  * Takes in no arguments, and returns an integer.
  */
 int MMC_Manager::get_last_worker() {
-    return layout_[level_ - 1][layout_[level_ - 1].size() - 1];
+    return workerRanks_[nWorkers_ - 1];
 }
 
 /* Accessor for the rank of the nth worker 
@@ -332,7 +387,17 @@ int MMC_Manager::get_last_worker() {
  * Takes in an integer argument, and returns an integer.
  */
 int MMC_Manager::get_nth_worker(int n) {
-    return layout_[level_ - 1][0] + n;
+    try {
+        if (n > nWorkers_) {
+            cout << "fatal error - manager tried to access worker that doesn't exist" << endl;
+            throw "fatal error - manager tried to access worker that doesn't exist";
+        }
+    }
+    catch (const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+    return workerRanks_[n];
 }
 
 /* Method to get the next rank to send work to.
@@ -340,14 +405,14 @@ int MMC_Manager::get_nth_worker(int n) {
  * work to the worker rank.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Manager::get_send_work_rank() {
+int MMC_Manager::get_next_worker() {
     int startRank = layout_[level_ - 1][0], lastRank = layout_[level_ - 1][layout_[level_ - 1].size() - 1];
     for (int commRank = startRank; commRank <= lastRank; ++commRank) {
         int flag;
-        MPI_Iprobe(commRank, REQUESTING_WORK_TAG, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
+        MPI_Iprobe(commRank, REQUESTING_TAG, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
         if (flag) {
             int recvDummy;
-            MPI_Recv(&recvDummy, 1, MPI_INT, commRank, REQUESTING_WORK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&recvDummy, 1, MPI_INT, commRank, REQUESTING_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             send_more_work_flag(commRank);
             return commRank;
         }
@@ -363,27 +428,11 @@ int MMC_Manager::get_send_work_rank() {
  * Takes in no arguments, and returns no value.
  */
 void MMC_Manager::clear_worker_queue() {
-    //int recvDummy;
-    //int flag;
-    //bool isDone = false;
     int startRank = layout_[level_ - 1][0], lastRank = layout_[level_ - 1][layout_[level_ - 1].size() - 1];
     
     for (int i = startRank; i <= lastRank; ++i) {
         send_end_work_flag(i);
     }
-    /*
-    while (!isDone) {
-        isDone = true;
-        for (int i = startRank; i <= lastRank; ++i) {
-            MPI_Iprobe(i, REQUESTING_WORK_TAG, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
-            if (flag) {
-                isDone = false;
-                MPI_Recv(&recvDummy, 1, MPI_INT, i, REQUESTING_WORK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                send_end_work_flag(i);
-            }
-        }
-    }
-    */
 }
 
 /* Method to inform a worker that there is more 
@@ -392,15 +441,16 @@ void MMC_Manager::clear_worker_queue() {
  */
 void MMC_Manager::send_more_work_flag(int commRank) {
     int sendFlag = 1;
-    MPI_Send(&sendFlag, 1, MPI_INT, commRank, RECEIVING_WORK_FLAG_TAG, MPI_COMM_WORLD);
+    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
 }
+
 /* Method to inform a worker that there is no more 
  * work for it to do.
  * Takes in an integer value, and returns no value. 
  */
 void MMC_Manager::send_end_work_flag(int commRank) {
     int sendFlag = 0;
-    MPI_Send(&sendFlag, 1, MPI_INT, commRank, RECEIVING_WORK_FLAG_TAG, MPI_COMM_WORLD);
+    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
 }
 
 
@@ -423,7 +473,7 @@ MMC_Lock::~MMC_Lock() {
  * Locks the lock for exclusive use.
  */
 void MMC_Lock::lock() {
-	pthread_mutex_lock(&lock_);
+    pthread_mutex_lock(&lock_);
 }
 
 /* Wrapper around pthread_mutex_unlock.
@@ -431,23 +481,7 @@ void MMC_Lock::lock() {
  * others to use. 
  */
 void MMC_Lock::unlock() {
-	pthread_mutex_unlock(&lock_);
-}
-
-/* Wrapper around MPI_Init. 
- * Initializes the cluster environment.
- */
-void MMC_Init() {
-    MPI_Init(NULL, NULL);
-}
-
-/* Wrapper around MPI_Finalize. 
- * Closes the cluster environment.
- * This should be the last function you call
- * before returning from main()
- */
-void MMC_Finalize() {
-    MPI_Finalize();
+    pthread_mutex_unlock(&lock_);
 }
 
 /* Reads the layout of the cluster from the file
@@ -465,6 +499,7 @@ Layout_t read_cluster_layout_from_file() {
     try {
         layerIss >> numLayers;
         if (numLayers == 0) {
+            cout << "fatal error - no information in layout" << endl;
             throw "fatal error - no information in layout";
         }
         else if (numLayers == 1) {
@@ -492,12 +527,4 @@ Layout_t read_cluster_layout_from_file() {
     }
     layoutFile.close();
     return layout;
-}
-
-/* Wrapper around omp_get_wtime(), which returns
- * the time in seconds calculated from a fixed point.
- * Takes in no arguments, and returns an double value.
- */
-double get_wtime() {
-    return omp_get_wtime();
 }
