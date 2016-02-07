@@ -1,26 +1,28 @@
+/* Copyright (C) 2016
+ * Contributed by Mattheus Lee <cs.mattheus.lee@gmail.com>
+ */   
+ 
+/* TODO
+ *
+ */
+   
 #ifndef MMC_H
 #define MMC_H
 
+#include <vector>
+#include <string>
+
 using namespace std;
 
-#define NO_REPORTING_RANK            -200
+#define NO_MANAGER                  -200
 
-#define REQUESTING_WORK_TAG          100
-#define RECEIVING_WORK_TAG           101
-#define RECEIVING_WORK_FLAG_TAG      102
-#define SENDING_RESULTS_TAG          103
+#define REQUESTING_TAG               100
+#define WORK_TAG                     101
+#define WORK_FLAG_TAG                102
+#define RESULTS_TAG                  103
 
-/* These barriers are useful for creating synchronization points.
- * Use MMC_machine_barrier to synchronize within a machine,
- * and MMC_program_barrier to synchronize within the entire program.
- * It is not recommended to call MMC_program_barrier while inside
- * a threaded portion.
- */
-#define _mmc_machine_barrier_ 	     _Pragma("omp barrier")
-#define _mmc_program_barrier_	     MPI_Barrier(MPI_COMM_WORLD);
-
-/* In this library the vector<vector<int>> type
- * is type-defined as Layout.
+/* This library uses vector<vector<int>>
+ * to hold the layout of a cluster.
  */
 typedef vector<vector<int>> Layout_t;
 
@@ -34,7 +36,9 @@ class MMC_Machine {
     int nThreads_;
     string role_;
     int level_;
-    int reportingRank_;
+    int managerRank_;
+    int rankInLevel_;
+    bool isTop_;
     
     void actual_MMC_Machine_ctor(Layout_t&);
     
@@ -49,7 +53,9 @@ class MMC_Machine {
     int get_n_threads();
     string get_role();
     int get_level();
-    int get_reporting_rank();
+    int get_manager_rank();
+    int get_rank_in_level();
+    bool is_top();
     
     void print_layout_info();
     void print_comm_info();
@@ -60,9 +66,10 @@ class MMC_Thread : public MMC_Machine {
     int threadID_;
     
     public:
-    MMC_Thread(MMC_Machine&);
     MMC_Thread(Layout_t&);
+    MMC_Thread();
     ~MMC_Thread();
+    MMC_Thread& operator=(MMC_Machine&);
     
     int get_thread_id();
 };
@@ -71,26 +78,30 @@ class MMC_Worker : public MMC_Machine {
     private:
     
     public:
-    MMC_Worker(MMC_Machine&);
     MMC_Worker(Layout_t&);
+    MMC_Worker();
     ~MMC_Worker();
+    MMC_Worker& operator=(MMC_Machine&);
     
     bool get_more_work();
 };
 
 class MMC_Manager : public MMC_Worker {
     private:
+    int nWorkers_;
+    vector<int> workerRanks_;
     
     public:
-    MMC_Manager(MMC_Machine&);
     MMC_Manager(Layout_t&);
+    MMC_Manager();
     ~MMC_Manager();
+    MMC_Manager& operator=(MMC_Machine&);
     
     int get_n_workers();
     int get_first_worker();
     int get_last_worker();
     int get_nth_worker(int);
-    int get_send_work_rank();
+    int get_next_worker();
     void clear_worker_queue();
     
     void send_more_work_flag(int);
@@ -109,11 +120,6 @@ class MMC_Lock {
 	void unlock();
 };
 
-void MMC_Init();
-void MMC_Finalize();
-
 Layout_t read_cluster_layout_from_file();
 
-double get_wtime();
-
-#endif //MMC_H
+#endif //MMC_H_INCLUDED
