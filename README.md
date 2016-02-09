@@ -49,3 +49,5 @@ This library allows for dynamic scheduling of work between machines through clas
     
         //receive results from individual workers
     }
+
+Specific examples can be found in the examples folder.
