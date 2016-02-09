@@ -44,6 +44,7 @@ class MMC_Machine {
     
     public:
     MMC_Machine(Layout_t&);
+    MMC_Machine();
     ~MMC_Machine();
     
     Layout_t get_layout();
@@ -57,8 +58,8 @@ class MMC_Machine {
     int get_rank_in_level();
     bool is_top();
     
-    void print_layout_info();
-    void print_comm_info();
+    //void print_layout_info();
+    //void print_comm_info();
 };
 
 class MMC_Thread : public MMC_Machine {
@@ -90,6 +91,10 @@ class MMC_Manager : public MMC_Worker {
     private:
     int nWorkers_;
     vector<int> workerRanks_;
+    int lastSentWorkRank_;
+    
+    void send_more_work_flag(int);
+    void send_end_work_flag(int);
     
     public:
     MMC_Manager(Layout_t&);
@@ -101,11 +106,9 @@ class MMC_Manager : public MMC_Worker {
     int get_first_worker();
     int get_last_worker();
     int get_nth_worker(int);
+    int get_worker_index(int);
     int get_next_worker();
     void clear_worker_queue();
-    
-    void send_more_work_flag(int);
-    void send_end_work_flag(int);
 };
 
 class MMC_Lock {
