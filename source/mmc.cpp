@@ -49,7 +49,7 @@ void MMC_Machine::actual_MMC_Machine_ctor(Layout_t& layout) {
         }
     }
     if (!found) {
-        cout << "fatal error - machine rank not found in layout" << endl;
+        cout << "fatal error - machine rank " << rank_ << " not found in layout" << endl;
         throw "fatal error - machine rank not found in layout";
     }
     if (level_ == 0) {
@@ -57,7 +57,7 @@ void MMC_Machine::actual_MMC_Machine_ctor(Layout_t& layout) {
     }
     else {
         role_ = "manager";
-        if (level_ == layout_.size() - 1) {
+        if ((unsigned int)level_ == layout_.size() - 1) {
             isTop_ = true;    
         }
         else {
@@ -95,6 +95,9 @@ MMC_Machine::MMC_Machine(Layout_t& layout)
         cout << "ERROR: " << errorMessage << endl;
         assert(0);
     }
+}
+
+MMC_Machine::MMC_Machine() {
 }
 
 /* Destructor for the MMC_Machine class.
@@ -174,6 +177,10 @@ bool MMC_Machine::is_top() {
     return isTop_;    
 }
 
+/* The following two methods were mainly for debugging purposes
+ * and are not required in the actual implementation.
+ */
+/*
 void MMC_Machine::print_layout_info() {
     for (unsigned int i = 0; i < layout_.size(); ++i) {
         for (unsigned int j = 0; j < layout_[i].size(); ++j) {
@@ -186,7 +193,7 @@ void MMC_Machine::print_layout_info() {
 void MMC_Machine::print_comm_info() {
     cout << "rank: " << rank_;
     cout << " manager rank: " << managerRank_ << endl;
-}
+}*/
 
 //////////////////////////////////
 /* MMC_Thread class starts here */
@@ -230,6 +237,7 @@ MMC_Thread& MMC_Thread::operator=(MMC_Machine& machine) {
     managerRank_ = machine.get_manager_rank();
     rankInLevel_ = machine.get_rank_in_level();
     threadID_ = omp_get_thread_num();
+    isTop_ = machine.is_top();
     return *this;
 }
 
@@ -280,6 +288,7 @@ MMC_Worker& MMC_Worker::operator=(MMC_Machine& machine) {
     level_ = machine.get_level();
     managerRank_ = machine.get_manager_rank();
     rankInLevel_ = machine.get_rank_in_level();
+    isTop_ = machine.is_top();
     return *this;
 }
 
@@ -306,6 +315,24 @@ bool MMC_Worker::get_more_work() {
 /* MMC_Manager class starts here */
 ///////////////////////////////////
 
+/* Method to inform a worker that there is more 
+ * work for it to do.
+ * Takes in an integer value, and returns no value. 
+ */
+void MMC_Manager::send_more_work_flag(int commRank) {
+    int sendFlag = 1;
+    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
+}
+
+/* Method to inform a worker that there is no more 
+ * work for it to do.
+ * Takes in an integer value, and returns no value. 
+ */
+void MMC_Manager::send_end_work_flag(int commRank) {
+    int sendFlag = 0;
+    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
+}
+
 /* Constructor for the MMC_Manager class.
 * Takes in a Layout_t variable detailing the 
 * cluster layout.
@@ -317,6 +344,7 @@ MMC_Manager::MMC_Manager(Layout_t& layout)
     for (int i = start; i < end; ++i) {
         workerRanks_.push_back(layout_[level_ - 1][i]);
     }
+    lastSentWorkRank_ = workerRanks_[0];
 }
 
 /* Constructor for the MMC_Manager class.
@@ -349,12 +377,18 @@ MMC_Manager& MMC_Manager::operator=(MMC_Machine& machine) {
     managerRank_ = machine.get_manager_rank();
     rankInLevel_ = machine.get_rank_in_level();
     nWorkers_ = layout_[level_ - 1].size() / layout_[level_].size();
-    int start = nWorkers_ * rankInLevel_;
-    int end = start + nWorkers_;
-    for (int i = start; i < end; ++i) {
-        //cout << "pushing back with " << " i: " << i << " --- " << layout_[level_ - 1][i] <<  endl;
+    unsigned int start = nWorkers_ * rankInLevel_;
+    unsigned int end = start + nWorkers_;
+    if (end > layout_[level_ - 1].size()) {
+        end = layout_[level_ - 1].size();
+        nWorkers_ = end - start;
+    }
+    for (unsigned int i = start; i < end; ++i) {
+        //cout << this->rank_ << " pushing back with " << " i: " << i << " --- " << layout_[level_ - 1][i] <<  endl;
         workerRanks_.push_back(layout_[level_ - 1][i]);
     }
+    isTop_ = machine.is_top();
+    lastSentWorkRank_ = workerRanks_[0];
     return *this;
 }
 
@@ -389,8 +423,8 @@ int MMC_Manager::get_last_worker() {
 int MMC_Manager::get_nth_worker(int n) {
     try {
         if (n > nWorkers_) {
-            cout << "fatal error - manager tried to access worker that doesn't exist" << endl;
-            throw "fatal error - manager tried to access worker that doesn't exist";
+            cout << "fatal error - manager " << this->rank_ << " tried to access worker index " << n <<  " that doesn't exist" << endl;
+            throw "fatal error - manager tried to access worker index that doesn't exist";
         }
     }
     catch (const string errorMessage) {
@@ -400,17 +434,39 @@ int MMC_Manager::get_nth_worker(int n) {
     return workerRanks_[n];
 }
 
+int MMC_Manager::get_worker_index(int rank) {
+    int index = -1;
+    try {
+        for (int i = 0; i < nWorkers_; ++i) {
+            if (workerRanks_[i] == rank) {
+                index = i;
+            }
+        }
+        if (index == -1) {
+            cout << "fatal error - manager " << this->rank_ << " tried to search for worker " << rank << " that doesn't exist" << endl;
+            throw "fatal error - manager tried to search for worker that doesn't exist";
+        }
+    }
+    catch (const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+    return index;
+}
+
 /* Method to get the next rank to send work to.
  * The method call should be followed up by sending the
  * work to the worker rank.
  * Takes in no arguments, and returns an integer.
  */
 int MMC_Manager::get_next_worker() {
-    int startRank = layout_[level_ - 1][0], lastRank = layout_[level_ - 1][layout_[level_ - 1].size() - 1];
-    for (int commRank = startRank; commRank <= lastRank; ++commRank) {
+    int startRank = workerRanks_[0], lastRank = workerRanks_[nWorkers_ - 1];
+    for (int commRank = lastSentWorkRank_; commRank <= lastRank; ++commRank) {
         int flag;
         MPI_Iprobe(commRank, REQUESTING_TAG, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
         if (flag) {
+            //cout << this->rank_ << " has work for " << commRank << endl;
+            lastSentWorkRank_ = commRank;
             int recvDummy;
             MPI_Recv(&recvDummy, 1, MPI_INT, commRank, REQUESTING_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             send_more_work_flag(commRank);
@@ -433,24 +489,6 @@ void MMC_Manager::clear_worker_queue() {
     for (int i = startRank; i <= lastRank; ++i) {
         send_end_work_flag(i);
     }
-}
-
-/* Method to inform a worker that there is more 
- * work for it to do.
- * Takes in an integer value, and returns no value. 
- */
-void MMC_Manager::send_more_work_flag(int commRank) {
-    int sendFlag = 1;
-    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
-}
-
-/* Method to inform a worker that there is no more 
- * work for it to do.
- * Takes in an integer value, and returns no value. 
- */
-void MMC_Manager::send_end_work_flag(int commRank) {
-    int sendFlag = 0;
-    MPI_Send(&sendFlag, 1, MPI_INT, commRank, WORK_FLAG_TAG, MPI_COMM_WORLD);
 }
 
 
@@ -492,12 +530,26 @@ void MMC_Lock::unlock() {
  */
 Layout_t read_cluster_layout_from_file() {
     ifstream layoutFile("cluster.layout");
-    int numLayers;
-    string layerString;
-    getline(layoutFile, layerString);
-    istringstream layerIss(layerString);
     try {
-        layerIss >> numLayers;
+        if (!layoutFile.is_open()) {
+            cout << "fatal error - no file opened" << endl;
+            throw "fatal error - no file opened";
+        }
+    }
+    catch(const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+    
+    vector<string> fileLayers;
+    string tempLayerString;
+    while (getline(layoutFile, tempLayerString)) {
+        fileLayers.push_back(tempLayerString);
+    }
+    layoutFile.close();
+    int numLayers = fileLayers.size();
+    
+    try {
         if (numLayers == 0) {
             cout << "fatal error - no information in layout" << endl;
             throw "fatal error - no information in layout";
@@ -511,20 +563,37 @@ Layout_t read_cluster_layout_from_file() {
         cout << "ERROR: " << errorMessage << endl;
         assert(0);
     }
-    catch(...) {
-        cout << "ERROR: cannot get number of layers from file" << endl;
-        assert(0);
-    }
-    Layout_t layout(numLayers);
     
+    Layout_t layout(numLayers);
     for (int i = 0; i < numLayers; ++i) {
         int readIn;
-        getline(layoutFile, layerString);
-        istringstream layerIss(layerString);
-        while (layerIss >> readIn) {
+        istringstream layeriss(fileLayers[i]);
+        //int rank;
+        //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        while (layeriss >> readIn) {
+            /*if (rank == 0) {
+                cout << "push " << i << " - " << readIn << endl;
+            }*/
             layout[i].push_back(readIn);
         }
     }
-    layoutFile.close();
+    
+    try {
+        for (unsigned int i = 1; i < layout.size(); ++i) {
+            if (layout[i - 1].size() < layout[i].size()) {
+                cout << "fatal error - layer " << i << " in layout has too many instances" << endl;
+                throw "fatal error - layers have wrong number of instances";
+            }
+        }
+        if (layout[numLayers - 1].size() != 1) {
+            cout << "WARNING: top layer of cluster has more than one instance." << endl;
+            cout << "Unexpected performance may result." << endl;
+        }
+    }
+    catch(const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+
     return layout;
 }
