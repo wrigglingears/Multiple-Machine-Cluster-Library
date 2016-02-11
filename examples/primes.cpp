@@ -117,12 +117,7 @@ bool incrementWorkUnit(int workInfo[], int gapToUse, int workEnd) {
 }
 
 void worker_function(MMC_Machine& machine) {
-<<<<<<< HEAD
     MMC_Worker worker(machine);
-=======
-    MMC_Worker worker;
-    worker = machine;
->>>>>>> origin/master
     int managerRank = worker.manager_rank();
     int workInfo[2];
     int primeCount = 0;
@@ -137,12 +132,7 @@ void worker_function(MMC_Machine& machine) {
 }
 
 void middle_manager_function(MMC_Machine& machine) {
-<<<<<<< HEAD
     MMC_Manager manager(machine);
-=======
-    MMC_Manager manager;
-    manager = machine;
->>>>>>> origin/master
     int* gaps = new int[(manager.layout()).size()];
     int gapToUse = fillGaps(gaps, manager);
     
@@ -173,12 +163,7 @@ void middle_manager_function(MMC_Machine& machine) {
 
 void top_manager_function(MMC_Machine& machine) {
     double startTime = omp_get_wtime();
-<<<<<<< HEAD
     MMC_Manager manager(machine);
-=======
-    MMC_Manager manager;
-    manager = machine;
->>>>>>> origin/master
     int* gaps = new int[(manager.layout()).size()];
     int gapToUse = fillGaps(gaps, manager);
     
