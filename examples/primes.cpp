@@ -30,7 +30,7 @@ int main(void) {
     
     MMC_Machine machine(layout);
     
-    if (machine.get_role() == "worker") {
+    if (machine.role() == "worker") {
         worker_function(machine);
     }
     else {
@@ -76,12 +76,12 @@ void sendWork(int workInfo[], int commRank, MPI_Request* request) {
 
 void receiveSendResults(MMC_Manager& manager) {
     int total = receiveResults(manager);
-    MPI_Send(&total, 1, MPI_INT, manager.get_manager_rank(), RESULTS_TAG, MPI_COMM_WORLD);
+    MPI_Send(&total, 1, MPI_INT, manager.manager_rank(), RESULTS_TAG, MPI_COMM_WORLD);
 }
 
 int receiveResults(MMC_Manager& manager) {
     int total = 0, recvTemp;
-    int start = manager.get_first_worker(), end = manager.get_last_worker();
+    int start = manager.first_worker(), end = manager.last_worker();
     for (int i = start; i <= end; ++i) {
         MPI_Recv(&recvTemp, 1, MPI_INT, i, RESULTS_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         total += recvTemp;
@@ -90,16 +90,16 @@ int receiveResults(MMC_Manager& manager) {
 }
 
 int fillGaps(int* gaps, MMC_Manager& manager) {
-    int numLayers = (manager.get_layout()).size();
+    int numLayers = (manager.layout()).size();
     gaps[0] = 0;
     gaps[1] = smallestGap;
     for (int i = 2; i < numLayers; ++i) {
-        int sizeLower = (manager.get_layout())[i - 1].size();
-        int sizeCurr = (manager.get_layout())[i].size();
+        int sizeLower = (manager.layout())[i - 1].size();
+        int sizeCurr = (manager.layout())[i].size();
         int multiplier = sizeLower / sizeCurr;
         gaps[i] = gaps[i - 1] * multiplier;
     }
-    return gaps[manager.get_level()];
+    return gaps[manager.level()];
 }
 
 bool incrementWorkUnit(int workInfo[], int gapToUse, int workEnd) {
@@ -119,7 +119,7 @@ bool incrementWorkUnit(int workInfo[], int gapToUse, int workEnd) {
 void worker_function(MMC_Machine& machine) {
     MMC_Worker worker;
     worker = machine;
-    int managerRank = worker.get_manager_rank();
+    int managerRank = worker.manager_rank();
     int workInfo[2];
     int primeCount = 0;
     
@@ -135,12 +135,12 @@ void worker_function(MMC_Machine& machine) {
 void middle_manager_function(MMC_Machine& machine) {
     MMC_Manager manager;
     manager = machine;
-    int* gaps = new int[(manager.get_layout()).size()];
+    int* gaps = new int[(manager.layout()).size()];
     int gapToUse = fillGaps(gaps, manager);
     
     int workEnd;
     int workInfo[2];
-    int managerRank = manager.get_manager_rank();
+    int managerRank = manager.manager_rank();
     MPI_Request requestDummy;
     bool hasMoreWork = manager.get_more_work();
     while (hasMoreWork) {
@@ -150,7 +150,7 @@ void middle_manager_function(MMC_Machine& machine) {
         
         bool isDone = false;
         while (!isDone) {
-            int nextRank = manager.get_next_worker();
+            int nextRank = manager.next_worker();
             
             sendWork(workInfo, nextRank, &requestDummy);
             
@@ -167,7 +167,7 @@ void top_manager_function(MMC_Machine& machine) {
     double startTime = omp_get_wtime();
     MMC_Manager manager;
     manager = machine;
-    int* gaps = new int[(manager.get_layout()).size()];
+    int* gaps = new int[(manager.layout()).size()];
     int gapToUse = fillGaps(gaps, manager);
     
     int workStart = 3, workEnd = maxCheck;
@@ -175,7 +175,7 @@ void top_manager_function(MMC_Machine& machine) {
     MPI_Request requestDummy;
     bool isDone = false;
     while (!isDone) {
-        int nextRank = manager.get_next_worker();
+        int nextRank = manager.next_worker();
         
         sendWork(workInfo, nextRank, &requestDummy);
         
