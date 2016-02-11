@@ -41,21 +41,21 @@ class MMC_Machine {
     bool isTop_;
     
     void actual_MMC_Machine_ctor(Layout_t&);
+    MMC_Machine();
     
     public:
     MMC_Machine(Layout_t&);
-    MMC_Machine();
     ~MMC_Machine();
     
-    Layout_t get_layout();
-    int get_rank();
-    string get_name();
-    int get_name_length();
-    int get_n_threads();
-    string get_role();
-    int get_level();
-    int get_manager_rank();
-    int get_rank_in_level();
+    Layout_t layout();
+    int rank();
+    string name();
+    int name_length();
+    int n_threads();
+    string role();
+    int level();
+    int manager_rank();
+    int rank_in_level();
     bool is_top();
     
     //void print_layout_info();
@@ -72,7 +72,7 @@ class MMC_Thread : public MMC_Machine {
     ~MMC_Thread();
     MMC_Thread& operator=(MMC_Machine&);
     
-    int get_thread_id();
+    int thread_id();
 };
 
 class MMC_Worker : public MMC_Machine {
@@ -102,12 +102,12 @@ class MMC_Manager : public MMC_Worker {
     ~MMC_Manager();
     MMC_Manager& operator=(MMC_Machine&);
     
-    int get_n_workers();
-    int get_first_worker();
-    int get_last_worker();
-    int get_nth_worker(int);
-    int get_worker_index(int);
-    int get_next_worker();
+    int n_workers();
+    int first_worker();
+    int last_worker();
+    int nth_worker(int);
+    int worker_index_from_rank(int);
+    int next_worker();
     void clear_worker_queue();
 };
 
@@ -124,5 +124,6 @@ class MMC_Lock {
 };
 
 Layout_t read_cluster_layout_from_file();
+Layout_t read_cluster_layout_from_file(string&);
 
 #endif //MMC_H_INCLUDED
