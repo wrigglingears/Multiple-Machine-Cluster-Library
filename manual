@@ -1,0 +1,212 @@
+This is a guide to the MMC library environment, as well as the classes and member functions that are involved.
+
+1. Overall environment
+
+1.1 Running MMC Code
+	MMC is built around having MPI available, and thus code written with MMC would at least have to be compiled and run with MPI. At the
+	very least, the user will have to call MPI_Init() and MPI_Finalize() whenever running a program that uses MMC.
+
+1.2 Naming
+	Every MPI instance is referred to as an MMC_Machine or machine, regardless of whether each machine is in fact a single machine on
+	its own. You could have multiple MMC_Machines on a single computer, each one using its own thread/core. However, it is up to the
+	programmer/user to ensure that the machine doesn't try to split further into threads if that is not possible. MMC only handles
+	communication between the machines, but not what happens within the machines.
+	A machine that is assigned to do work is referred to as an MMC_Worker, or worker. The worker's job is simply to receive work from
+	its manager, to execute the work units, and then to return the result to the manager. Therefore the only communication a worker
+	should have is with its manager. With reference to any given machine, if it has any other machines under it, those machines are
+	referred to as workers, regardless of their actual role. This is for the sake of clarity.
+	A machine that is assigned to distribute work is referred to as an MMC_Manager, or manager. If there are multiple levels in the
+	cluster layout, there can be more than one level of managers, and thus there will be middle managers as well as a top manager. The
+	middle managers will have to receive work from their manager, and then distribute that work among their workers, while the top
+	manager just distributes work to its workers.
+
+1.3 New Types
+	MMC defines the vector<vector<int>> type as Layout_t, and uses it to hold the layout information of the cluster.
+
+1.4 Defining the cluster layout
+	The levels of the cluster layout are increasing value from top to bottom. 
+	For example:
+
+	0 1 2 3 4 5 6 7
+	8 9
+	10
+
+	Would mean: ranks 0-3 report to 8, 4-7 report to 9, 8-9 report to 10.
+
+	Another example:
+
+	0 1 2 3
+	4
+	5
+	
+	Would mean: ranks 0-1 report to 4, 2-3 report to 4, 4 report to 5.
+
+	Cluster layouts do not accept uneven numbers of workers per manager within the same level, so this could produce errors in your
+	program:
+
+	0 1 2 3 4
+	5 6
+	7
+	
+
+2. Classes
+
+2.1 MMC_Machine
+
+2.1.1 General Information
+	The MMC_Machine class is the basis for all the other classes, and contains most of the necessary members and accessor methods.
+
+2.1.2 Constructor
+	The MMC_Machine constructor has only one form that can be called:
+		MMC_Machine(Layout_t&)
+	This constructor takes in a reference to a Layout_t variable, and proceeds to construct the MMC_Machine object using the information
+	in that variable.
+
+2.1.3 Destructor
+	The MMC_Machine destructor is called automatically.
+
+2.1.4 Methods
+	Layout_t layout()
+		Returns the layout stored and used by the MMC_Machine as a Layout_t.
+
+	int rank()
+		Returns the MPI rank of the MMC_Machine as an integer.
+
+	string name()
+		Returns the name of the MMC_Machine as a string.
+
+	int name_length()
+		Returns the length (number of characters) of the name of the MMC_Machine as an integer.
+
+	int n_threads()
+		Returns the number of threads the MMC_Machine will try to run using OpenMP as an integer.
+
+	string role()
+		Returns the role of the MMC_Machine ("worker" or "manager") as a string.
+	
+	int level()
+		Returns the level of the MMC_Machine as an integer. The worker level is 0.
+
+	int manager_rank()
+		Returns the MPI rank of the manager of the MMC_Machine as an integer.
+
+	int rank_in_level()
+		Returns the rank of the MMC_Machine within the level as an integer. It is not the same as its rank.
+
+	bool is_top() 
+		Returns whether the MMC_Machine is in the top level (if the machine is the top manager).
+
+2.2 MMC_Thread
+
+2.2.1 General Information
+	The MMC_Thread class inherits most of its members and methods from the MMC_Machine class, and adds on a few of its own.
+
+2.2.2 Constructor
+	The MMC_Thread constructor has two forms that can be called:
+		MMC_Thread()
+		MMC_Thread(Layout_t&)
+	The first form does not set up anything, and must be followed up by the = operator as described later. The second form takes in a
+	reference to a Layout_t variable, and proceeds to construct the MMC_Thread object using the information in that variable.
+
+2.2.3 Destructor
+	The MMC_Thread destructor is called automatically.
+
+2.2.4 Methods
+	MMC_Thread& operator=(MMC_Machine&)
+		This is the more efficient method to initialize the MMC_Thread object, to be used in combination with the first form of the
+		constructor. This operator copies over all the values already in the MMC_Machine object, saving the time taken to calculate it all
+		again from the layout.
+	
+	int thread_id()
+		Returns the OpenMP thread id of the MMC_Thread as an integer.
+
+2.3 MMC_Worker
+
+2.3.1 General Information
+	The MMC_Worker class inherits most of its members and methods from the MMC_Machine class, and adds on a few of its own.
+
+2.3.2 Constructor
+	The MMC_Worker constructor has two forms that can be called:
+		MMC_Worker()
+		MMC_Worker(Layout_t&)
+	The first form does not set up anything, and must be followed up by the = operator as described later. The second form takes in a
+	reference to a Layout_t variable, and proceeds to construct the MMC_Worker object using the information in that variable.
+
+2.3.3 Destructor
+	The MMC_Worker destructor is called automatically.
+
+2.3.4 Methods
+	MMC_Worker& operator=(MMC_Machine&)
+		This is the more efficient method to initialize the MMC_Worker object, to be used in combination with the first form of the
+		constructor. This operator copies over all the values already in the MMC_Machine object, saving the time taken to calculate it all
+		again from the layout.
+
+	bool get_more_work()
+		Returns whether the worker has more work left to receive from the manager. If so, this should immediately be followed up by the
+		receiving of work from the manager.
+
+2.4 MMC_Manager
+
+2.4.1 General Information
+	The MMC_Manager class inherits most of its members and methods from the MMC_Worker class, and adds on a few of its own.
+
+2.4.2 Constructor
+	The MMC_Manager constructor has two forms that can be called:
+		MMC_Manager()
+		MMC_Manager(Layout_t&)
+	The first form does not set up anything, and must be followed up by the = operator as described later. The second form takes in a
+	reference to a Layout_t variable, and proceeds to construct the MMC_Manager object using the information in that variable.
+
+2.4.3 Destructor
+	The MMC_Manager destructor is called automatically.
+
+2.4.4 Methods
+	int n_workers()
+		Returns the number of workers under the MMC_Manager as an integer.
+	
+	int first_worker()
+		Returns the MPI rank of the first worker under the MMC_Manager as an integer.
+	
+	int last_worker()
+		Returns the MPI rank of the last worker under the MMC_Manager as an integer.
+
+	int nth_worker(int)
+		Returns the MPI rank of the nth worker under the MMC_Manager as an integer. n is specified by the integer argument.
+	
+	int worker_index_from_rank(int)
+		Returns the relative index of the worker among all the workers under the MMC_Manager as in integer. The rank of the worker to
+		search for is specified in the integer argument.
+	
+	int next_worker()
+		Returns the MPI rank of the next worker to send work to as an integer.
+
+	void clear_worker_queue()
+		Informs all workers under the MMC_Manager that there is no more work for them to do. This can be followed up by collecting the
+		results from the workers.
+
+2.5 MMC_Lock
+
+2.5:20 PM 11-Feb-16.1 General Information
+	The MMC_Lock class is a class wrapper around the pthread mutex.
+
+2.5.2 Constructor
+	The MMC_Lock constructor has only one form:
+		MMC_Lock()
+	It does not require any arguments.
+
+2.5.3 Destructor
+	The MMC_Lock destructor is called automatically.
+
+2.5.4 Methods
+	void lock()
+		The function call blocks until the lock is obtained.
+
+	void unlock()
+		The lock is released.
+
+3. Other Functions
+	Layout_t read_cluster_layout_from_file()
+		Reads the cluster layout from the file cluster.layout in the same directory as the executable.
+
+	Layout_t read_cluster_layout_from_file(string&)
+		Reads the cluster layout from the file specified in the string argument.
