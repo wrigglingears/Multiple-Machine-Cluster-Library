@@ -108,21 +108,21 @@ MMC_Machine::~MMC_Machine() {
 /* Accessor for the layout of the cluster.
  * Takes in no arguments, and returns a Layout_t variable. 
  */
-Layout_t MMC_Machine::get_layout() {
+Layout_t MMC_Machine::layout() {
     return layout_;
 }
 
 /* Accessor for the rank of the machine.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Machine::get_rank() {
+int MMC_Machine::rank() {
     return rank_;
 }
 
 /* Accessor for the name of the machine.
  * Takes in no arguments, and returns a string.
  */
-string MMC_Machine::get_name() {
+string MMC_Machine::name() {
     return sName_;
 }
 
@@ -130,7 +130,7 @@ string MMC_Machine::get_name() {
  * machine.
  * Take in no arguments, and returns an integer.
  */
-int MMC_Machine::get_name_length() {
+int MMC_Machine::name_length() {
     return nameLength_;
 }
 
@@ -138,35 +138,35 @@ int MMC_Machine::get_name_length() {
  * will try to run.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Machine::get_n_threads() {
+int MMC_Machine::n_threads() {
     return nThreads_;
 }
 
 /* Accessor for the role of the machine.
  * Takes in no arguments, and returns a string.
  */
-string MMC_Machine::get_role() {
+string MMC_Machine::role() {
     return role_;
 }
 
 /* Accessor for the level of the machine.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Machine::get_level() {
+int MMC_Machine::level() {
     return level_;
 }
 
 /* Accessor for the rank of the machine's manager.
  * Takes in no arguments, and returns an integer. 
  */
-int MMC_Machine::get_manager_rank() {
+int MMC_Machine::manager_rank() {
     return managerRank_;
 }
 
 /* Accessor for the rank of the machine within its level.
  * Takes in no arguments, and returns an integer. 
  */
-int MMC_Machine::get_rank_in_level() {
+int MMC_Machine::rank_in_level() {
     return rankInLevel_;
 }
 
@@ -227,15 +227,15 @@ MMC_Thread& MMC_Thread::operator=(MMC_Machine& machine) {
     if (this == &machine) {
         return *this;
     }
-    layout_ = machine.get_layout();
-    rank_ = machine.get_rank();
-    sName_ = machine.get_name();
-    nameLength_ = machine.get_name_length();
-    nThreads_ = machine.get_n_threads();
-    role_ = machine.get_role();
-    level_ = machine.get_level();
-    managerRank_ = machine.get_manager_rank();
-    rankInLevel_ = machine.get_rank_in_level();
+    layout_ = machine.layout();
+    rank_ = machine.rank();
+    sName_ = machine.name();
+    nameLength_ = machine.name_length();
+    nThreads_ = machine.n_threads();
+    role_ = machine.role();
+    level_ = machine.level();
+    managerRank_ = machine.manager_rank();
+    rankInLevel_ = machine.rank_in_level();
     threadID_ = omp_get_thread_num();
     isTop_ = machine.is_top();
     return *this;
@@ -244,7 +244,7 @@ MMC_Thread& MMC_Thread::operator=(MMC_Machine& machine) {
 /* Accessor for the thread ID of the thread.
  * Takes in no arguments, and returns an integer value.
  */
-int MMC_Thread::get_thread_id() {
+int MMC_Thread::thread_id() {
     return threadID_;
 }
 
@@ -279,15 +279,15 @@ MMC_Worker& MMC_Worker::operator=(MMC_Machine& machine) {
     if (this == &machine) {
         return *this;
     }
-    layout_ = machine.get_layout();
-    rank_ = machine.get_rank();
-    sName_ = machine.get_name();
-    nameLength_ = machine.get_name_length();
-    nThreads_ = machine.get_n_threads();
-    role_ = machine.get_role();
-    level_ = machine.get_level();
-    managerRank_ = machine.get_manager_rank();
-    rankInLevel_ = machine.get_rank_in_level();
+    layout_ = machine.layout();
+    rank_ = machine.rank();
+    sName_ = machine.name();
+    nameLength_ = machine.name_length();
+    nThreads_ = machine.n_threads();
+    role_ = machine.role();
+    level_ = machine.level();
+    managerRank_ = machine.manager_rank();
+    rankInLevel_ = machine.rank_in_level();
     isTop_ = machine.is_top();
     return *this;
 }
@@ -396,7 +396,7 @@ MMC_Manager& MMC_Manager::operator=(MMC_Machine& machine) {
  * the manager.
  * Takes in no aruments, and returns an integer.
  */
-int MMC_Manager::get_n_workers() {
+int MMC_Manager::n_workers() {
     return nWorkers_;;
 }
 
@@ -404,7 +404,7 @@ int MMC_Manager::get_n_workers() {
  * under the manager.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Manager::get_first_worker() {
+int MMC_Manager::first_worker() {
     return workerRanks_[0];
 }
 
@@ -412,7 +412,7 @@ int MMC_Manager::get_first_worker() {
  * under the manager.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Manager::get_last_worker() {
+int MMC_Manager::last_worker() {
     return workerRanks_[nWorkers_ - 1];
 }
 
@@ -420,7 +420,7 @@ int MMC_Manager::get_last_worker() {
  * under the manager.
  * Takes in an integer argument, and returns an integer.
  */
-int MMC_Manager::get_nth_worker(int n) {
+int MMC_Manager::nth_worker(int n) {
     try {
         if (n > nWorkers_) {
             cout << "fatal error - manager " << this->rank_ << " tried to access worker index " << n <<  " that doesn't exist" << endl;
@@ -434,7 +434,7 @@ int MMC_Manager::get_nth_worker(int n) {
     return workerRanks_[n];
 }
 
-int MMC_Manager::get_worker_index(int rank) {
+int MMC_Manager::worker_index_from_rank(int rank) {
     int index = -1;
     try {
         for (int i = 0; i < nWorkers_; ++i) {
@@ -459,7 +459,7 @@ int MMC_Manager::get_worker_index(int rank) {
  * work to the worker rank.
  * Takes in no arguments, and returns an integer.
  */
-int MMC_Manager::get_next_worker() {
+int MMC_Manager::next_worker() {
     int startRank = workerRanks_[0], lastRank = workerRanks_[nWorkers_ - 1];
     for (int commRank = lastSentWorkRank_; commRank <= lastRank; ++commRank) {
         int flag;
@@ -530,6 +530,82 @@ void MMC_Lock::unlock() {
  */
 Layout_t read_cluster_layout_from_file() {
     ifstream layoutFile("cluster.layout");
+    try {
+        if (!layoutFile.is_open()) {
+            cout << "fatal error - no file opened" << endl;
+            throw "fatal error - no file opened";
+        }
+    }
+    catch(const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+    
+    vector<string> fileLayers;
+    string tempLayerString;
+    while (getline(layoutFile, tempLayerString)) {
+        fileLayers.push_back(tempLayerString);
+    }
+    layoutFile.close();
+    int numLayers = fileLayers.size();
+    
+    try {
+        if (numLayers == 0) {
+            cout << "fatal error - no information in layout" << endl;
+            throw "fatal error - no information in layout";
+        }
+        else if (numLayers == 1) {
+            cout << "WARNING: cluster is only arranged on one level." << endl;
+            cout << "Unexpected performance may result." << endl;
+        }
+    }
+    catch(const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+    
+    Layout_t layout(numLayers);
+    for (int i = 0; i < numLayers; ++i) {
+        int readIn;
+        istringstream layeriss(fileLayers[i]);
+        //int rank;
+        //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        while (layeriss >> readIn) {
+            /*if (rank == 0) {
+                cout << "push " << i << " - " << readIn << endl;
+            }*/
+            layout[i].push_back(readIn);
+        }
+    }
+    
+    try {
+        for (unsigned int i = 1; i < layout.size(); ++i) {
+            if (layout[i - 1].size() < layout[i].size()) {
+                cout << "fatal error - layer " << i << " in layout has too many instances" << endl;
+                throw "fatal error - layers have wrong number of instances";
+            }
+        }
+        if (layout[numLayers - 1].size() != 1) {
+            cout << "WARNING: top layer of cluster has more than one instance." << endl;
+            cout << "Unexpected performance may result." << endl;
+        }
+    }
+    catch(const string errorMessage) {
+        cout << "ERROR: " << errorMessage << endl;
+        assert(0);
+    }
+
+    return layout;
+}
+
+/* Reads the layout of the cluster from the
+ * specified file, and arranges the data into a 
+ * 2-dimensional vector which the user can treat as
+ * an array.
+ * Takes in a string, and returns a Layout_t variable.
+ */
+Layout_t read_cluster_layout_from_file(string& fileName) {
+    ifstream layoutFile(fileName);
     try {
         if (!layoutFile.is_open()) {
             cout << "fatal error - no file opened" << endl;
