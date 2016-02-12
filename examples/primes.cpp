@@ -126,7 +126,7 @@ void worker_function(MMC_Machine& machine) {
     while (hasMoreWork) {
         recvWork(workInfo, managerRank);
         primeCount += primeCalc(workInfo);
-        hasMoreWork = worker.get_more_work();
+        hasMoreWork = worker.request_more_work();
     }
     MPI_Send(&primeCount, 1, MPI_INT, managerRank, RESULTS_TAG, MPI_COMM_WORLD);
 }
@@ -140,7 +140,7 @@ void middle_manager_function(MMC_Machine& machine) {
     int workInfo[2];
     int managerRank = manager.manager_rank();
     MPI_Request requestDummy;
-    bool hasMoreWork = manager.get_more_work();
+    bool hasMoreWork = manager.request_more_work();
     while (hasMoreWork) {
         recvWork(workInfo, managerRank);
         workEnd = workInfo[1];
