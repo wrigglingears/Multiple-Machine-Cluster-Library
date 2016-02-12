@@ -334,7 +334,7 @@ MMC_Worker& MMC_Worker::operator=(MMC_Machine& machine) {
 * the work from the worker's manager.
 * Takes in no arguments, and returns a boolean.
 */
-bool MMC_Worker::get_more_work() {
+bool MMC_Worker::request_more_work() {
     int sendDummy;
     MPI_Request requestDummy;
     MPI_Isend(&sendDummy, 1, MPI_INT, managerRank_, REQUESTING_TAG, MPI_COMM_WORLD, &requestDummy);
