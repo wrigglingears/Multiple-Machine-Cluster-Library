@@ -1,5 +1,5 @@
 # Multiple-Machine-Cluster-Library
-It is a collection of C++ classes that help in organizing hierarchical cluster organisation and dynamic work allocation.
+This is a collection of C++ classes that help in organizing hierarchical cluster organisation and dynamic work allocation.
 
 I started programming a 'pi cluster' with a combination of MPI and OpenMP, which yielded satisfactory results but was at times difficult to analyze and maintain. It was also difficult to properly relate the individual MPI instances in a way that was meaningful.
 
@@ -17,9 +17,10 @@ This library allows for dynamic scheduling of work between machines through clas
         
         //setup code here
         
-        int manager = machine.get_manager_rank();
-        bool hasMoreWork = worker.get_more_work(); //returns whether the manager has more work to allocate
+        int manager = machine.manager_rank();
+        bool hasMoreWork = worker.request_more_work(); //returns whether the manager has more work to allocate
         while (hasMoreWork) {
+        
         //get work unit from manager
       
         //do work based on workInfo
