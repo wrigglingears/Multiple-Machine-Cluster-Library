@@ -85,7 +85,7 @@ class MMC_Worker : public MMC_Machine {
     ~MMC_Worker();
     MMC_Worker& operator=(MMC_Machine&);
     
-    bool get_more_work();
+    bool request_more_work();
 };
 
 class MMC_Manager : public MMC_Worker {
