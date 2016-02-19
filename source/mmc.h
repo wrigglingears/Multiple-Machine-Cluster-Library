@@ -7,6 +7,8 @@
  */
    
 #pragma once
+#ifndef MULTIPLE_MACHINE_CLUSTER_H
+#define MULTIPLE_MACHINE_CLUSTER_H
 
 #include <vector>
 #include <string>
@@ -128,3 +130,4 @@ class MMC_Lock {
 Layout_t read_cluster_layout_from_file();
 Layout_t read_cluster_layout_from_file(string&);
 
+#endif //MULTIPLE_MACHINE_CLUSTER_H INCLUDED
