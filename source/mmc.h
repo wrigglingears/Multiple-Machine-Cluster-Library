@@ -63,7 +63,7 @@ class MMC_Machine {
     //void print_comm_info();
 };
 
-class MMC_Thread : public MMC_Machine {
+class MMC_Thread : MMC_Machine {
     private:
     int threadID_;
     
@@ -77,7 +77,7 @@ class MMC_Thread : public MMC_Machine {
     int thread_id();
 };
 
-class MMC_Worker : public MMC_Machine {
+class MMC_Worker : MMC_Machine {
     private:
     
     public:
@@ -90,7 +90,7 @@ class MMC_Worker : public MMC_Machine {
     bool request_more_work();
 };
 
-class MMC_Manager : public MMC_Worker {
+class MMC_Manager : MMC_Worker {
     private:
     int nWorkers_;
     vector<int> workerRanks_;
